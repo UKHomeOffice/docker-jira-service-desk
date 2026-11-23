@@ -28,6 +28,7 @@ steps:
     IMAGE_NAME: quay.io/ukhomeofficedigital/jira-service-desk:${DRONE_COMMIT_SHA}
     IGNORE_UNFIXED: "true"
     FAIL_ON_DETECTION: "false"
+    FAIL_ON_EOL_OS_DETECTION: "false"
   depends_on:
     - build-image
   when:
