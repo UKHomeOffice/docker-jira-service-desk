@@ -1,0 +1,57 @@
+FROM eclipse-temurin:17-jre-jammy
+
+ENV JIRA_HOME=/var/atlassian/jira \
+    JIRA_INSTALL=/opt/atlassian/jira \
+    APP_VERSION=5.12.0
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+      bash \
+      ca-certificates \
+      ca-certificates-java \
+      curl \
+      fontconfig \
+      fonts-dejavu-core \
+      unzip \
+      xmlstarlet; \
+    rm -rf /var/lib/apt/lists/*; \
+    groupadd --system --gid 1000 jira; \
+    useradd --system --uid 1000 --gid jira --home-dir /home/jira --create-home jira; \
+    mkdir -p "${JIRA_HOME}/caches/indexes" "${JIRA_INSTALL}/conf/Catalina"; \
+    chown -R jira:jira "${JIRA_HOME}"; \
+    curl --fail --show-error --location \
+      https://www.atlassian.com/software/jira/downloads/binary/atlassian-servicedesk-5.12.0.tar.gz \
+      | tar -xz --directory "${JIRA_INSTALL}" --strip-components=1 --no-same-owner; \
+    curl --fail --show-error --location \
+      --output "${JIRA_INSTALL}/lib/mysql-connector-j-8.0.33.jar" \
+      https://repo.maven.apache.org/maven2/com/mysql/mysql-connector-j/8.0.33/mysql-connector-j-8.0.33.jar; \
+    unzip -l "${JIRA_INSTALL}/lib/mysql-connector-j-8.0.33.jar" \
+      | grep -F 'com/mysql/cj/jdbc/Driver.class'; \
+    rm -f "${JIRA_INSTALL}/lib/mysql-connector-java-5.1.38-bin.jar"; \
+    curl --fail --show-error --location \
+      --output /usr/local/share/ca-certificates/eu-west-2-bundle.crt \
+      https://truststore.pki.rds.amazonaws.com/eu-west-2/eu-west-2-bundle.pem; \
+    update-ca-certificates; \
+    chmod -R 700 "${JIRA_INSTALL}/conf" "${JIRA_INSTALL}/logs" "${JIRA_INSTALL}/temp" "${JIRA_INSTALL}/work"; \
+    chown -R jira:jira "${JIRA_INSTALL}/conf" "${JIRA_INSTALL}/logs" "${JIRA_INSTALL}/temp" "${JIRA_INSTALL}/work"; \
+    sed --in-place 's/java version/openjdk version/g' "${JIRA_INSTALL}/bin/check-java.sh"; \
+    printf '\njira.home=%s\n' "${JIRA_HOME}" >> "${JIRA_INSTALL}/atlassian-jira/WEB-INF/classes/jira-application.properties"; \
+    touch -d '@0' "${JIRA_INSTALL}/conf/server.xml"; \
+    printf '\nexport CATALINA_OPTS\n' >> "${JIRA_INSTALL}/bin/setenv.sh"; \
+    printf '\norg.apache.catalina.connector.Response.level=ERROR\n' >> "${JIRA_INSTALL}/conf/logging.properties"
+
+USER 1000
+
+ADD --chown=jira:jira config/jira-config.properties /var/atlassian/
+
+EXPOSE 8080
+
+VOLUME ["/var/atlassian/jira", "/opt/atlassian/jira/logs"]
+
+WORKDIR /var/atlassian/jira
+
+COPY --chown=jira:jira docker-entrypoint.sh /
+
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["/opt/atlassian/jira/bin/start-jira.sh", "-fg"]
