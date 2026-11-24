@@ -2,7 +2,7 @@ FROM eclipse-temurin:17-jre-jammy
 
 ENV JIRA_HOME=/var/atlassian/jira \
     JIRA_INSTALL=/opt/atlassian/jira \
-    APP_VERSION=5.12.0
+    APP_VERSION=10.3.27
 
 RUN set -eux; \
     apt-get update; \
@@ -21,7 +21,7 @@ RUN set -eux; \
     mkdir -p "${JIRA_HOME}/caches/indexes" "${JIRA_INSTALL}/conf/Catalina"; \
     chown -R jira:jira "${JIRA_HOME}"; \
     curl --fail --show-error --location \
-      https://www.atlassian.com/software/jira/downloads/binary/atlassian-servicedesk-5.12.0.tar.gz \
+      https://www.atlassian.com/software/jira/downloads/binary/atlassian-servicedesk-10.3.27.tar.gz \
       | tar -xz --directory "${JIRA_INSTALL}" --strip-components=1 --no-same-owner; \
     curl --fail --show-error --location \
       --output "${JIRA_INSTALL}/lib/mysql-connector-j-8.0.33.jar" \
