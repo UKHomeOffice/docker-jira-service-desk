@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: jira-pg-migration
+  namespace: jira-jdbc-test
+spec:
+  clusterIP: None
+  selector:
+    app: jira-pg-migration
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: jira-pg-migration
+  namespace: jira-jdbc-test
+spec:
+  serviceName: jira-pg-migration
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jira-pg-migration
+  template:
+    metadata:
+      labels:
+        app: jira-pg-migration
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      initContainers:
+        - name: prepare-dbconfig
+          image: quay.io/ukhomeofficedigital/jira-service-desk@sha256:a35e7cc0b2bc9fa5be93d212b14ca4cc28aca10e6faab3fb4d70879ebcf4dd84
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - cp /source/dbconfig.xml /target/dbconfig.xml && chmod 600 /target/dbconfig.xml
+          volumeMounts:
+            - name: jira-dbconfig-source
+              mountPath: /source
+              readOnly: true
+            - name: jira-dbconfig
+              mountPath: /target
+      containers:
+        - name: jira
+          image: quay.io/ukhomeofficedigital/jira-service-desk@sha256:a35e7cc0b2bc9fa5be93d212b14ca4cc28aca10e6faab3fb4d70879ebcf4dd84
+          env:
+            - name: CATALINA_OPTS
+              value: >-
+                -Xms1g -Xmx4g
+                -Datlassian.notifications.disabled=true
+                -Datlassian.mail.senddisabled=true
+                -Datlassian.mail.fetchdisabled=true
+                -Datlassian.mail.popdisabled=true
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 4Gi
+            limits:
+              cpu: "4"
+              memory: 6Gi
+          volumeMounts:
+            - name: jira-home
+              mountPath: /var/atlassian/jira
+            - name: jira-dbconfig
+              mountPath: /var/atlassian/jira/dbconfig.xml
+              subPath: dbconfig.xml
+      volumes:
+        - name: jira-dbconfig-source
+          secret:
+            secretName: jira-pg-migration-dbconfig
+        - name: jira-dbconfig
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: jira-home
+      spec:
+        storageClassName: gp2-encrypted
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi

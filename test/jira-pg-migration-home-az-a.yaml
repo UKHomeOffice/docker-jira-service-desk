@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: jira-pg-migration-home-az-a
+  labels:
+    app: jira-pg-migration
+    environment: test
+spec:
+  capacity:
+    storage: 20Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: gp2-encrypted
+  awsElasticBlockStore:
+    volumeID: aws://eu-west-2a/vol-00bc338385bf18fb4
+    fsType: ext4
+  claimRef:
+    namespace: jira-jdbc-test
+    name: jira-home-jira-pg-migration-0
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: topology.kubernetes.io/zone
+              operator: In
+              values:
+                - eu-west-2a
+            - key: topology.kubernetes.io/region
+              operator: In
+              values:
+                - eu-west-2
